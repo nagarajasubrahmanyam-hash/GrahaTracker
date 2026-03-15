@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graha Transit & Speed Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Graha Tracker
+                </h1>
+                <p class="text-slate-500 text-sm mt-1">High-Accuracy Sidereal (Lahiri) Planetary Movements</p>
+            </div>
+        </header>
+
+        <!-- Controls & Snapshot Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <!-- Controls (Left Column) -->
+            <div class="space-y-6 lg:col-span-1">
+                <!-- Config Panel -->
+                <div class="glass-panel p-6 rounded-2xl flex flex-col gap-4">
+                    <h2 class="text-lg font-semibold text-slate-800 border-b pb-2 mb-2">Configuration</h2>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Start Date</label>
+                        <input type="date" id="startDate" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white p-2.5 border">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">End Date</label>
+                        <input type="date" id="endDate" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white p-2.5 border">
+                    </div>
+
+                    <button id="generateBtn" class="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg transition-colors">
+                        Calculate & Graph
+                    </button>
+                </div>
+            </div>
+
+            <!-- All Grahas Live Dashboard (Right Column) -->
+            <div class="glass-panel p-4 md:p-6 rounded-2xl lg:col-span-3 flex flex-col relative overflow-hidden h-fit">
+                <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-indigo-100 rounded-full opacity-50 blur-2xl"></div>
+                
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 z-10 gap-2">
+                    <h2 class="text-lg font-semibold text-slate-800">Live Graha Dashboard (All Planets)</h2>
+                    <button id="liveToggleBtn" class="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                        <span class="relative flex h-3 w-3">
+                          <span id="livePing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-0"></span>
+                          <span id="liveDot" class="relative inline-flex rounded-full h-3 w-3 bg-slate-400"></span>
+                        </span>
+                        Enable Live Push Alerts
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto z-10">
+                    <table class="min-w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-500 uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="px-2 py-2">Graha</th>
+                                <th class="px-2 py-2">Sign</th>
+                                <th class="px-2 py-2">Nakshatra</th>
+                                <th class="px-2 py-2">Speed</th>
+                                <th class="px-2 py-2">Motion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="liveDashboardBody" class="divide-y divide-slate-100">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planet Tabs Navigation -->
+        <div class="glass-panel p-2 rounded-xl flex overflow-x-auto hide-scrollbar gap-2 mb-2" id="planetTabs">
+            <!-- Tabs injected via JS -->
+        </div>
+
+        <!-- Charts Panel -->
+        <div class="space-y-6">
+            <!-- Speed Chart -->
+            <div class="glass-panel p-4 md:p-6 rounded-2xl">
+                <div class="flex justify-between items-start mb-4 flex-col lg:flex-row gap-2">
+                    <h2 id="speedChartTitle" class="text-lg font-semibold text-slate-800 whitespace-nowrap">Speed & Ashta Vidha Gati</h2>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                        <span title="Very Fast" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #4f46e5"></span> Atichara</span>
+                        <span title="Fast" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #3b82f6"></span> Chara</span>
+                        <span title="Normal" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #10b981"></span> Sama</span>
+                        <span title="Slow" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #eab308"></span> Manda</span>
+                        <span title="Very Slow" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f97316"></span> Mandatara</span>
+                        <span title="Stationary" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #6b7280"></span> Vikala</span>
+                        <span title="Slow Retrograde" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f87171"></span> Anuvakra</span>
+                        <span title="Retrograde" class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #dc2626"></span> Vakra</span>
+                    </div>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="speedChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Transit Chart -->
+            <div class="glass-panel p-4 md:p-6 rounded-2xl">
+                <div class="mb-4">
+                    <h2 id="transitChartTitle" class="text-lg font-semibold text-slate-800">Zodiac Transit (Rasi & Nakshatra)</h2>
+                    <p class="text-sm text-slate-500">Tracking the 360° Sidereal longitude over time.</p>
+                </div>
+                <div class="relative h-96 w-full">
+                    <canvas id="transitChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planetary Transit Events Calendar -->
+        <div class="glass-panel p-4 md:p-6 rounded-2xl mt-6">
+            <div class="flex justify-between items-start mb-4 flex-col lg:flex-row gap-2">
+                <h2 class="text-lg font-semibold text-slate-800">Planetary Transit Events Calendar</h2>
+            </div>
+            
+            <div class="flex flex-wrap gap-4 mb-4 items-end bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Planet</label>
+                    <select id="eventPlanet" class="rounded-lg border-slate-300 bg-white p-2 border text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="All">All Grahas</option>
+                        <option value="Sun">Surya (Sun)</option>
+                        <option value="Moon">Chandra (Moon)</option>
+                        <option value="Mars">Mangala (Mars)</option>
+                        <option value="Mercury">Budha (Mercury)</option>
+                        <option value="Jupiter">Guru (Jupiter)</option>
+                        <option value="Venus">Shukra (Venus)</option>
+                        <option value="Saturn">Shani (Saturn)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Event Type</label>
+                    <select id="eventType" class="rounded-lg border-slate-300 bg-white p-2 border text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="All">All Major Movements</option>
+                        <option value="Rasi">Rasi (Sign) Change</option>
+                        <option value="Nakshatra">Nakshatra Change</option>
+                        <option value="Pada">Pada Change</option>
+                        <option value="Motion">Motion (Gati) Change</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Timeframe</label>
+                    <select id="eventTimeframe" class="rounded-lg border-slate-300 bg-white p-2 border text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" onchange="updateEventDates()">
+                        <option value="ugadi">Ugadi to Ugadi (Mar-Mar)</option>
+                        <option value="custom">Custom Date Range</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
+                    <input type="date" id="eventStart" class="rounded-lg border-slate-300 bg-white p-2 border text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">End Date</label>
+                    <input type="date" id="eventEnd" class="rounded-lg border-slate-300 bg-white p-2 border text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <button id="findEventsBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-5 rounded-lg transition-colors text-sm shadow-sm">
+                    Find Events
+                </button>
+            </div>
+
+            <div class="overflow-x-auto max-h-96 border border-slate-100 rounded-lg">
+                <table class="min-w-full text-sm text-left text-slate-600 border-collapse">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100 sticky top-0 z-10">
+                        <tr>
+                            <th class="px-4 py-3 border-b">Date</th>
+                            <th class="px-4 py-3 border-b">Planet</th>
+                            <th class="px-4 py-3 border-b">Event Type</th>
+                            <th class="px-4 py-3 border-b">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventsTableBody" class="divide-y divide-slate-100">
+                        <!-- Events populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Accuracy Testing Panel -->
+        <div class="glass-panel p-4 md:p-6 rounded-2xl mt-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="accuracyTableTitle" class="text-lg font-semibold text-slate-800">Hard Accuracy Test Data</h2>
+                <span class="text-xs font-medium bg-slate-200 text-slate-600 py-1 px-2 rounded-md">Geocentric Ecliptic (J2000)</span>
+            </div>
+            <div class="overflow-x-auto max-h-96">
+                <table class="min-w-full text-sm text-left text-slate-600 border-collapse">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100 sticky top-0 z-10">
+                        <tr>
+                            <th class="px-4 py-3 border-b">Date</th>
+                            <th class="px-4 py-3 border-b">Tropical Lon.</th>
+                            <th class="px-4 py-3 border-b">Ayanamsa (Lahiri)</th>
+                            <th class="px-4 py-3 border-b text-indigo-700">Sidereal Lon.</th>
+                            <th class="px-4 py-3 border-b">Speed (°/day)</th>
+                            <th class="px-4 py-3 border-b">Motion (Gati)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accuracyTableBody" class="divide-y divide-slate-100">
+                        <!-- Data populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Core Astrological Data & Constants ---
+        const rasiNames = [
+            "Aries (Mesha)", "Taurus (Vrishabha)", "Gemini (Mithuna)", "Cancer (Karka)", 
+            "Leo (Simha)", "Virgo (Kanya)", "Libra (Tula)", "Scorpio (Vrischika)", 
+            "Sagittarius (Dhanu)", "Capricorn (Makara)", "Aquarius (Kumbha)", "Pisces (Meena)"
+        ];
+
+        const nakshatraNames = [
+            "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra", 
+            "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni", 
+            "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha", 
+            "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta", 
+            "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+        ];
+
+        // Mean and extreme geocentric speeds for the 8 motions (Ashta Vidha Gati) thresholds
+        const planetMotionParams = {
+            Sun: { mean: 0.9856, max: 1.02, maxRetro: 0 },
+            Moon: { mean: 13.176, max: 15.2, maxRetro: 0 },
+            Mars: { mean: 0.524, max: 0.75, maxRetro: -0.38 },
+            Mercury: { mean: 1.20, max: 2.20, maxRetro: -1.50 },
+            Venus: { mean: 1.00, max: 1.26, maxRetro: -0.62 },
+            Jupiter: { mean: 0.083, max: 0.23, maxRetro: -0.13 },
+            Saturn: { mean: 0.033, max: 0.12, maxRetro: -0.08 }
+        };
+
+        // Determine the Ashta Vidha Gati state based on velocity magnitude
+        function getMotion(planet, speed) {
+            const p = planetMotionParams[planet];
+            
+            // Stationary threshold (less than 5% of its average speed)
+            if (Math.abs(speed) <= (p.mean * 0.05)) {
+                return { id: 'VIKALA', name: 'Vikala (Stationary)', color: '#6b7280', textClass: 'text-gray-500', desc: 'Appears stationary / devoid of motion' };
+            }
+
+            if (speed < 0) {
+                // Failsafe for luminaries (they do not retrograde)
+                if (planet === 'Sun' || planet === 'Moon') return { id: 'SAMA', name: 'Sama', color: '#10b981', textClass: 'text-emerald-500', desc: 'Normal' };
+                
+                // If it's more than 50% of its max retrograde speed, it's Vakra (Fast Retro)
+                if (speed <= (p.maxRetro * 0.5)) {
+                    return { id: 'VAKRA', name: 'Vakra (Retrograde)', color: '#dc2626', textClass: 'text-red-600', desc: 'Moving backward rapidly' };
+                } else {
+                    return { id: 'ANUVAKRA', name: 'Anuvakra (Slow Retrograde)', color: '#f87171', textClass: 'text-red-400', desc: 'Moving backward slowly' };
+                }
+            } else {
+                // Direct motions
+                if (planet === 'Sun' || planet === 'Moon') {
+                    if (speed < p.mean * 0.96) return { id: 'MANDA', name: 'Manda (Slow)', color: '#eab308', textClass: 'text-yellow-500', desc: 'Moving slower than average' };
+                    if (speed > p.mean * 1.04) return { id: 'CHARA', name: 'Chara (Fast)', color: '#3b82f6', textClass: 'text-blue-500', desc: 'Moving faster than average' };
+                    return { id: 'SAMA', name: 'Sama (Normal)', color: '#10b981', textClass: 'text-emerald-500', desc: 'Normal forward motion' };
+                }
+
+                // Tara Grahas (Mars, Mercury, Jupiter, Venus, Saturn)
+                if (speed < p.mean * 0.5) return { id: 'MANDATARA', name: 'Mandatara (Very Slow)', color: '#f97316', textClass: 'text-orange-500', desc: 'Moving forward very slowly' };
+                if (speed < p.mean * 0.85) return { id: 'MANDA', name: 'Manda (Slow)', color: '#eab308', textClass: 'text-yellow-500', desc: 'Moving forward slowly' };
+                if (speed <= p.mean * 1.15) return { id: 'SAMA', name: 'Sama (Normal)', color: '#10b981', textClass: 'text-emerald-500', desc: 'Normal forward motion' };
+                if (speed <= p.mean * 1.5) return { id: 'CHARA', name: 'Chara (Fast)', color: '#3b82f6', textClass: 'text-blue-500', desc: 'Moving forward fast' };
+                
+                return { id: 'ATICHARA', name: 'Atichara (Very Fast)', color: '#4f46e5', textClass: 'text-indigo-600', desc: 'Moving exceptionally fast (accelerated)' };
+            }
+        }
+
+        // --- Core Functions ---
+
+        // Convert Decimal Degrees to Degrees, Minutes, Seconds
+        function degToDMS(deg) {
+            const d = Math.floor(deg);
+            const minFloat = (deg - d) * 60;
+            const m = Math.floor(minFloat);
+            const s = Math.round((minFloat - m) * 60);
+            return `${d}° ${m}' ${s}"`;
+        }
+
+        // Calculate highly accurate Lahiri Ayanamsa for a given date
+        function getLahiriAyanamsa(date) {
+            const j2000 = new Date(Date.UTC(2000, 0, 1, 12, 0, 0));
+            const daysSince2000 = (date.getTime() - j2000.getTime()) / (1000 * 60 * 60 * 24);
+            const centuries = daysSince2000 / 36525;
+            // 23.853056 is the Lahiri Ayanamsa at J2000 epoch. 5029.0966 is accumulated precession in arcsec per century.
+            return 23.853056 + (centuries * (5029.0966 / 3600));
+        }
+
+        // Get exact planetary position
+        function getPlanetPosition(planetStr, date) {
+            const body = Astronomy.Body[planetStr];
+            const time = new Astronomy.AstroTime(date);
+            
+            // Get Geocentric Vector in True Equator/Equinox of Date
+            const vector = Astronomy.GeoVector(body, time, true);
+            
+            // Convert to Ecliptic Coordinates
+            const ecliptic = Astronomy.Ecliptic(vector);
+            const tropicalLon = ecliptic.elon;
+
+            // Apply Ayanamsa to get Sidereal (Nirayana) Longitude
+            const ayanamsa = getLahiriAyanamsa(date);
+            let siderealLon = (tropicalLon - ayanamsa + 360) % 360;
+
+            const rasiIndex = Math.floor(siderealLon / 30);
+            const degreeInRasi = siderealLon % 30;
+            
+            const nakshatraIndex = Math.floor(siderealLon / (360/27));
+            const pada = Math.floor((siderealLon % (360/27)) / (360/108)) + 1;
+
+            return {
+                tropicalLon,
+                ayanamsa,
+                siderealLon,
+                rasiIndex,
+                degreeInRasi,
+                nakshatraIndex,
+                pada
+            };
+        }
+
+        // --- Chart Management ---
+        let speedChartInstance = null;
+        let transitChartInstance = null;
+
+        function renderCharts(labels, speedData, lonData, motionData) {
+            // Speed Chart
+            const ctxSpeed = document.getElementById('speedChart').getContext('2d');
+            if (speedChartInstance) speedChartInstance.destroy();
+            
+            speedChartInstance = new Chart(ctxSpeed, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Speed (°/day)',
+                        data: speedData,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        tension: 0.3,
+                        segment: {
+                            borderColor: ctx => {
+                                if(!ctx.p0 || !ctx.p1 || !motionData) return undefined;
+                                return motionData[ctx.p0DataIndex].color;
+                            }
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const motion = motionData[context.dataIndex];
+                                    return [
+                                        `Speed: ${context.parsed.y.toFixed(4)}° / day`,
+                                        `State: ${motion.name}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: (ctx) => ctx.tick.value === 0 ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.05)' }
+                        },
+                        x: {
+                            ticks: { maxTicksLimit: 15 }
+                        }
+                    }
+                }
+            });
+
+            // Transit (Longitude) Chart
+            const ctxTransit = document.getElementById('transitChart').getContext('2d');
+            if (transitChartInstance) transitChartInstance.destroy();
+
+            transitChartInstance = new Chart(ctxTransit, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Sidereal Longitude',
+                        data: lonData,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        tension: 0.1,
+                        segment: {
+                            borderColor: ctx => {
+                                if(!ctx.p0 || !ctx.p1) return undefined;
+                                // If jump is massive (moving from Pisces back to Aries), make segment transparent to break line
+                                if(Math.abs(ctx.p0.parsed.y - ctx.p1.parsed.y) > 180) return 'transparent';
+                                return 'rgba(79, 70, 229, 1)'; // Indigo 600
+                            }
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const lon = context.parsed.y;
+                                    const sign = Math.floor(lon / 30);
+                                    const nak = Math.floor(lon / (360/27));
+                                    const degStr = degToDMS(lon % 30);
+                                    return [
+                                        `Degree: ${degStr} in ${rasiNames[sign].split(' ')[0]}`,
+                                        `Nakshatra: ${nakshatraNames[nak]}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 360,
+                            ticks: {
+                                stepSize: 30,
+                                callback: function(value) {
+                                    if (value % 30 === 0 && value < 360) {
+                                        return rasiNames[value / 30].split(' ')[0]; // Show English Sign name
+                                    }
+                                    return value;
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        },
+                        x: {
+                            ticks: { maxTicksLimit: 15 }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- Main Generation Logic & Tabs ---
+        const PLANET_DISPLAY_NAMES = {
+            'Sun': 'Surya (Sun)', 'Moon': 'Chandra (Moon)', 'Mars': 'Mangala (Mars)',
+            'Mercury': 'Budha (Mercury)', 'Jupiter': 'Guru (Jupiter)', 'Venus': 'Shukra (Venus)', 'Saturn': 'Shani (Saturn)'
+        };
+        let globalDataStore = {};
+        let activeTab = 'Sun'; // Default starting tab
+
+        function setupTabs() {
+            const tabsContainer = document.getElementById('planetTabs');
+            tabsContainer.innerHTML = '';
+            
+            Object.keys(planetMotionParams).forEach(planet => {
+                const btn = document.createElement('button');
+                btn.className = `px-5 py-2.5 rounded-lg font-medium text-sm transition-colors whitespace-nowrap border ${planet === activeTab ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`;
+                btn.innerText = PLANET_DISPLAY_NAMES[planet];
+                btn.onclick = () => switchTab(planet);
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        function switchTab(planet) {
+            activeTab = planet;
+            setupTabs(); // Refresh active styles
+            renderActiveTab();
+        }
+
+        function renderActiveTab() {
+            if (!globalDataStore[activeTab]) return;
+            const data = globalDataStore[activeTab];
+            
+            // Update UI Titles dynamically based on selected tab
+            document.getElementById('speedChartTitle').innerText = `Speed & Ashta Vidha Gati - ${PLANET_DISPLAY_NAMES[activeTab]}`;
+            document.getElementById('transitChartTitle').innerText = `Zodiac Transit - ${PLANET_DISPLAY_NAMES[activeTab]}`;
+            document.getElementById('accuracyTableTitle').innerText = `Hard Accuracy Test Data - ${PLANET_DISPLAY_NAMES[activeTab]}`;
+
+            // Re-render graphs & table data instantly from memory
+            renderCharts(data.labels, data.speedData, data.lonData, data.motionData);
+            document.getElementById('accuracyTableBody').innerHTML = data.rawRows.join('');
+        }
+
+        // --- Planetary Transit Events Logic ---
+        function updateEventDates() {
+            const preset = document.getElementById('eventTimeframe').value;
+            if (preset === 'ugadi') {
+                const now = new Date();
+                let year = now.getFullYear();
+                // Approximate Ugadi boundary check
+                if (now.getMonth() < 2 || (now.getMonth() === 2 && now.getDate() < 22)) {
+                    year--; // If before Mar 22, use previous year's Ugadi cycle
+                }
+                document.getElementById('eventStart').value = `${year}-03-22`;
+                document.getElementById('eventEnd').value = `${year + 1}-03-21`;
+            }
+        }
+
+        function generateEvents() {
+            const planetFilter = document.getElementById('eventPlanet').value;
+            const typeFilter = document.getElementById('eventType').value;
+            const startStr = document.getElementById('eventStart').value;
+            const endStr = document.getElementById('eventEnd').value;
+
+            if(!startStr || !endStr) {
+                alert("Please select valid dates for the events calendar.");
+                return;
+            }
+
+            const startDate = new Date(startStr);
+            const endDate = new Date(endStr);
+            const tbody = document.getElementById('eventsTableBody');
+            tbody.innerHTML = '';
+
+            let planetsToCheck = planetFilter === 'All' ? Object.keys(planetMotionParams) : [planetFilter];
+            let prevStates = {};
+            
+            let currentDate = new Date(startDate);
+            currentDate.setDate(currentDate.getDate() - 1); // Start 1 day before to capture transition on Day 1
+
+            planetsToCheck.forEach(planet => {
+                const pos = getPlanetPosition(planet, currentDate);
+                let tomorrow = new Date(currentDate);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const pos2 = getPlanetPosition(planet, tomorrow);
+                let speed = pos2.siderealLon - pos.siderealLon;
+                if (speed > 180) speed -= 360;
+                if (speed < -180) speed += 360;
+                const motion = getMotion(planet, speed);
+
+                prevStates[planet] = { rasi: pos.rasiIndex, nak: pos.nakshatraIndex, pada: pos.pada, motionId: motion.id };
+            });
+
+            currentDate = new Date(startDate);
+
+            while(currentDate <= endDate) {
+                const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year:'numeric' });
+                
+                planetsToCheck.forEach(planet => {
+                    const pos = getPlanetPosition(planet, currentDate);
+                    let tomorrow = new Date(currentDate);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const pos2 = getPlanetPosition(planet, tomorrow);
+                    let speed = pos2.siderealLon - pos.siderealLon;
+                    if (speed > 180) speed -= 360;
+                    if (speed < -180) speed += 360;
+                    const motion = getMotion(planet, speed);
+
+                    const prev = prevStates[planet];
+                    const events = [];
+
+                    if (pos.rasiIndex !== prev.rasi) {
+                        if (typeFilter === 'All' || typeFilter === 'Rasi') {
+                            events.push({ type: 'Rasi', details: `Entered ${rasiNames[pos.rasiIndex].split(' ')[0]}` });
+                        }
+                    }
+                    
+                    if (pos.nakshatraIndex !== prev.nak) {
+                        if (typeFilter === 'All' || typeFilter === 'Nakshatra') {
+                            events.push({ type: 'Nakshatra', details: `Entered ${nakshatraNames[pos.nakshatraIndex]} (Pada ${pos.pada})` });
+                        }
+                    } else if (pos.pada !== prev.pada) {
+                        if (typeFilter === 'All' || typeFilter === 'Pada') {
+                            events.push({ type: 'Pada', details: `Shifted to Pada ${pos.pada}` });
+                        }
+                    }
+
+                    if (motion.id !== prev.motionId) {
+                        if (typeFilter === 'All' || typeFilter === 'Motion') {
+                            events.push({ type: 'Motion', details: `Motion changed to ${motion.name.split(' ')[0]}` });
+                        }
+                    }
+
+                    events.forEach(ev => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="px-4 py-2 whitespace-nowrap">${dateLabel}</td>
+                            <td class="px-4 py-2 font-medium text-slate-800">${PLANET_DISPLAY_NAMES[planet]}</td>
+                            <td class="px-4 py-2 text-xs font-semibold text-indigo-600">${ev.type}</td>
+                            <td class="px-4 py-2 text-sm">${ev.details}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    prevStates[planet] = { rasi: pos.rasiIndex, nak: pos.nakshatraIndex, pada: pos.pada, motionId: motion.id };
+                });
+
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            if (tbody.innerHTML === '') {
+                 tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-slate-500">No major transit events found for the selected criteria.</td></tr>`;
+            }
+        }
+
+        function generate() {
+            const startStr = document.getElementById('startDate').value;
+            const endStr = document.getElementById('endDate').value;
+
+            if(!startStr || !endStr) {
+                alert("Please select valid dates.");
+                return;
+            }
+
+            const startDate = new Date(startStr);
+            const endDate = new Date(endStr);
+            
+            // Generate for ALL planets at once
+            Object.keys(planetMotionParams).forEach(planet => {
+                let currentDate = new Date(startDate);
+                
+                const labels = [];
+                const speedData = [];
+                const lonData = [];
+                const motionData = [];
+                const rawRows = [];
+
+                while(currentDate <= endDate) {
+                    const dateLabel = currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year:'numeric' });
+                    labels.push(dateLabel);
+
+                    // Position Today
+                    const pos1 = getPlanetPosition(planet, currentDate);
+                    
+                    // Position Tomorrow (to calculate speed)
+                    let tomorrow = new Date(currentDate);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const pos2 = getPlanetPosition(planet, tomorrow);
+
+                    // Calculate Speed (Difference in longitude)
+                    let speed = pos2.siderealLon - pos1.siderealLon;
+                    
+                    // Handle 360 degree wrap around for speed calculation
+                    if (speed > 180) speed -= 360;
+                    if (speed < -180) speed += 360;
+
+                    const motion = getMotion(planet, speed);
+
+                    speedData.push(speed);
+                    lonData.push(pos1.siderealLon);
+                    motionData.push(motion);
+
+                    // Pre-generate raw HTML rows for instantaneous tab switching
+                    rawRows.push(`
+                        <tr>
+                            <td class="px-4 py-2 whitespace-nowrap">${dateLabel}</td>
+                            <td class="px-4 py-2 font-mono text-xs">${pos1.tropicalLon.toFixed(6)}°</td>
+                            <td class="px-4 py-2 font-mono text-xs text-slate-400">${pos1.ayanamsa.toFixed(6)}°</td>
+                            <td class="px-4 py-2 font-mono text-xs font-semibold text-indigo-600">${pos1.siderealLon.toFixed(6)}°</td>
+                            <td class="px-4 py-2 font-mono text-xs ${speed < 0 ? 'text-red-500' : 'text-emerald-500'}">${speed > 0 ? '+' : ''}${speed.toFixed(6)}°</td>
+                            <td class="px-4 py-2 text-xs font-semibold ${motion.textClass}">${motion.name.split(' ')[0]}</td>
+                        </tr>
+                    `);
+
+                    // Increment Date
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                // Store processed data for tab switching
+                globalDataStore[planet] = { labels, speedData, lonData, motionData, rawRows };
+            });
+
+            // Refresh UI once generation is complete
+            setupTabs();
+            renderActiveTab();
+        }
+
+        // --- Live Mode, Dashboard & Notifications Logic ---
+        const ALL_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn'];
+        let liveIntervalId = null;
+        let lastKnownStates = {};
+
+        async function toggleLiveMode() {
+            const btn = document.getElementById('liveToggleBtn');
+
+            if (liveIntervalId) {
+                // Turn OFF
+                clearInterval(liveIntervalId);
+                liveIntervalId = null;
+                btn.innerHTML = `
+                    <span class="relative flex h-3 w-3">
+                      <span id="livePing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-0"></span>
+                      <span id="liveDot" class="relative inline-flex rounded-full h-3 w-3 bg-slate-400"></span>
+                    </span>
+                    Enable Live Push Alerts`;
+                return;
+            }
+
+            // Turn ON
+            if (Notification.permission !== "granted") {
+                const permission = await Notification.requestPermission();
+                if (permission !== "granted") {
+                    alert("Notification permission denied. Live mode will update the dashboard but won't send push notifications.");
+                }
+            }
+
+            btn.innerHTML = `
+                <span class="relative flex h-3 w-3">
+                  <span id="livePing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span id="liveDot" class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                Live Mode Active`;
+            
+            // Initialize states immediately to avoid instant fake notifications
+            updateLiveDashboard(true); 
+            
+            // Check for transitions every 60 seconds
+            liveIntervalId = setInterval(() => updateLiveDashboard(false), 60000); 
+        }
+
+        function updateLiveDashboard(isInitialLoad = false) {
+            const tbody = document.getElementById('liveDashboardBody');
+            
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            ALL_PLANETS.forEach(planet => {
+                const posNow = getPlanetPosition(planet, now);
+                const posTom = getPlanetPosition(planet, tomorrow);
+                
+                let speed = posTom.siderealLon - posNow.siderealLon;
+                if (speed > 180) speed -= 360;
+                if (speed < -180) speed += 360;
+
+                const motion = getMotion(planet, speed);
+                
+                // Track transitions for notifications
+                const currentState = {
+                    sign: posNow.rasiIndex,
+                    nakshatra: posNow.nakshatraIndex,
+                    motionId: motion.id
+                };
+
+                if (!isInitialLoad && lastKnownStates[planet]) {
+                    const prev = lastKnownStates[planet];
+                    let alerts = [];
+
+                    if (prev.sign !== currentState.sign) {
+                        alerts.push(`${planet} entered ${rasiNames[currentState.sign].split(' ')[0]}!`);
+                    }
+                    if (prev.nakshatra !== currentState.nakshatra) {
+                        alerts.push(`${planet} entered ${nakshatraNames[currentState.nakshatra]} Nakshatra!`);
+                    }
+                    if (prev.motionId !== currentState.motionId) {
+                        alerts.push(`${planet} motion changed to ${motion.name}!`);
+                    }
+
+                    if (alerts.length > 0 && Notification.permission === "granted") {
+                        new Notification("🪐 Graha Transit Alert", {
+                            body: alerts.join('\n'),
+                            icon: "https://cdn-icons-png.flaticon.com/512/3280/3280058.png"
+                        });
+                    }
+                }
+                
+                lastKnownStates[planet] = currentState;
+
+                // Update DOM
+                let row = document.getElementById(`live-row-${planet}`);
+                if (!row) {
+                    row = document.createElement('tr');
+                    row.id = `live-row-${planet}`;
+                    tbody.appendChild(row);
+                }
+                
+                row.innerHTML = `
+                    <td class="px-2 py-3 font-semibold text-slate-800 flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full ${speed < 0 ? 'bg-red-500' : 'bg-emerald-500'}" title="${speed < 0 ? 'Retrograde' : 'Direct'}"></div>
+                        ${planet}
+                    </td>
+                    <td class="px-2 py-3">
+                        <span class="font-medium text-slate-900">${rasiNames[posNow.rasiIndex].split(' ')[0]}</span> 
+                        <span class="text-xs text-slate-400 block sm:inline sm:ml-1">${degToDMS(posNow.degreeInRasi)}</span>
+                    </td>
+                    <td class="px-2 py-3">
+                        <span class="font-medium text-slate-900">${nakshatraNames[posNow.nakshatraIndex]}</span>
+                        <span class="text-xs text-slate-400 block sm:inline sm:ml-1">Pada ${posNow.pada}</span>
+                    </td>
+                    <td class="px-2 py-3 font-mono text-xs ${speed < 0 ? 'text-red-500' : 'text-emerald-500'}">
+                        ${speed > 0 ? '+' : ''}${speed.toFixed(4)}°/d
+                    </td>
+                    <td class="px-2 py-3">
+                        <span class="${motion.textClass} text-xs font-bold px-2 py-1 bg-slate-50 rounded-md border border-slate-100">${motion.name.split(' ')[0]}</span>
+                    </td>
+                `;
+            });
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+            // Set Default Dates: Past 1 month to next 6 months
+            const today = new Date();
+            const start = new Date();
+            start.setMonth(start.getMonth() - 1);
+            const end = new Date();
+            end.setMonth(end.getMonth() + 6);
+
+            document.getElementById('startDate').value = start.toISOString().split('T')[0];
+            document.getElementById('endDate').value = end.toISOString().split('T')[0];
+
+            // Event Listeners
+            document.getElementById('generateBtn').addEventListener('click', generate);
+            document.getElementById('liveToggleBtn').addEventListener('click', toggleLiveMode);
+
+            // Init Events Calendar
+            updateEventDates();
+            document.getElementById('findEventsBtn').addEventListener('click', generateEvents);
+            document.getElementById('eventTimeframe').addEventListener('change', () => {
+                if (document.getElementById('eventTimeframe').value === 'custom') {
+                    // Just unbind the forced update and let user select custom
+                    document.getElementById('eventStart').focus();
+                }
+            });
+
+            // Initial Generates
+            generate();
+            updateLiveDashboard(true);
+            generateEvents();
+        };
+    </script>
+</body>
+</html>
